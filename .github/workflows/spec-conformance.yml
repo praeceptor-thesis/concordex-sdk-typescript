@@ -1,0 +1,101 @@
+name: spec-conformance
+
+# Runs the contract-test corpus from concordex-sdk-spec at the tag
+# pinned in package.json#concordex.specVersion. Sets the GitHub status
+# check `spec-conformance/<version>` that promote.yml in the spec repo
+# polls before dispatching publish.
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/v*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  checks: write
+  statuses: write
+
+jobs:
+  conformance:
+    name: spec-conformance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout SDK
+        uses: actions/checkout@v4
+        with:
+          path: sdk
+
+      - name: Resolve pinned spec version
+        id: spec
+        working-directory: sdk
+        run: |
+          VERSION=$(node -p "require('./package.json').concordex.specVersion")
+          if [ -z "$VERSION" ] || [ "$VERSION" = "undefined" ]; then
+            echo "::error::package.json missing concordex.specVersion"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Pinned spec version: $VERSION"
+
+      - name: Checkout spec at pinned tag
+        uses: actions/checkout@v4
+        with:
+          repository: praeceptor-thesis/concordex-sdk-spec
+          ref: v${{ steps.spec.outputs.version }}
+          path: spec
+
+      - name: Cross-check VERSION file
+        run: |
+          FILE_VERSION=$(cat spec/VERSION | tr -d '[:space:]')
+          if [ "$FILE_VERSION" != "${{ steps.spec.outputs.version }}" ]; then
+            echo "::error::pinned spec version ${{ steps.spec.outputs.version }} != spec VERSION file $FILE_VERSION"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install
+        working-directory: sdk
+        run: npm ci
+
+      - name: Build
+        working-directory: sdk
+        run: npm run build
+
+      - name: Run conformance corpus
+        working-directory: sdk
+        env:
+          CONCORDEX_SPEC_PATH: ${{ github.workspace }}/spec
+        run: npm run test:conformance
+
+      - name: Publish status check
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.spec.outputs.version }}';
+            const name = `spec-conformance/${version}`;
+            const conclusion = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name,
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion,
+              output: {
+                title: `Spec conformance ${version}`,
+                summary: conclusion === 'success'
+                  ? `All ${version} contract tests passed.`
+                  : `One or more ${version} contract tests failed — see job logs.`,
+              },
+            });

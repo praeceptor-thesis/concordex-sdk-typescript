@@ -1,0 +1,70 @@
+{
+  "name": "@concordex/sdk",
+  "version": "0.5.0",
+  "description": "TypeScript SDK for Concordex — the codex of trust between minds. Emit agent-stream events, run circuit-breaker checks, verify signed webhooks.",
+  "license": "Apache-2.0",
+  "author": "Eastern Shore Solutions",
+  "homepage": "https://concordex.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/praeceptor-thesis/concordex-sdk-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/praeceptor-thesis/concordex-sdk-typescript/issues"
+  },
+  "keywords": [
+    "concordex",
+    "agent",
+    "ai",
+    "audit",
+    "circuit-breaker",
+    "observability"
+  ],
+  "type": "module",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs && npm run build:types",
+    "build:esm": "tsc -p tsconfig.build.esm.json",
+    "build:cjs": "tsc -p tsconfig.build.cjs.json && node -e \"require('fs').renameSync('dist/cjs/index.js','dist/cjs/index.cjs')\"",
+    "build:types": "tsc -p tsconfig.build.types.json",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:conformance": "vitest run tests/conformance.test.ts",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "undici": "^6.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "concordex": {
+    "specVersion": "0.5.0"
+  }
+}
