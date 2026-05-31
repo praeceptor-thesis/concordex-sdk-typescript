@@ -13,11 +13,16 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
   checks: write
   statuses: write
+
+concurrency:
+  group: spec-conformance-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   conformance:
@@ -41,18 +46,37 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Pinned spec version: $VERSION"
 
-      - name: Checkout spec at pinned tag
+      - name: Resolve spec checkout ref
+        id: spec_ref
+        env:
+          VERSION: ${{ steps.spec.outputs.version }}
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/release/*|refs/tags/v*)
+              echo "ref=v${VERSION}" >> "$GITHUB_OUTPUT"
+              echo "mode=release"  >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "ref=main"      >> "$GITHUB_OUTPUT"
+              echo "mode=dev"      >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Checkout spec
         uses: actions/checkout@v4
         with:
           repository: praeceptor-thesis/concordex-sdk-spec
-          ref: v${{ steps.spec.outputs.version }}
+          ref: ${{ steps.spec_ref.outputs.ref }}
           path: spec
 
-      - name: Cross-check VERSION file
+      - name: Cross-check VERSION file (release mode only)
+        if: steps.spec_ref.outputs.mode == 'release'
+        env:
+          VERSION: ${{ steps.spec.outputs.version }}
         run: |
           FILE_VERSION=$(cat spec/VERSION | tr -d '[:space:]')
-          if [ "$FILE_VERSION" != "${{ steps.spec.outputs.version }}" ]; then
-            echo "::error::pinned spec version ${{ steps.spec.outputs.version }} != spec VERSION file $FILE_VERSION"
+          if [ "$FILE_VERSION" != "$VERSION" ]; then
+            echo "::error::pinned spec version $VERSION != spec VERSION file $FILE_VERSION"
             exit 1
           fi
 

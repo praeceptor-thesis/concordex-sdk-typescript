@@ -248,7 +248,7 @@ const cx = new Concordex({
 The default base URL is `https://api.concordex.dev`. For local
 development or staging:
 
-- Staging: `https://staging.api.praeceptor-thesis.com`
+- Staging: `https://staging.api.eastern-shore-solutions.com`
 - Local:   `http://localhost:8080`
 
 ## Resource lifecycle
