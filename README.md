@@ -268,6 +268,74 @@ Pre-1.0, MINOR bumps MAY include breaking wire changes; PATCH bumps
 remain backwards-compatible at both API and wire level. See
 `concordex-sdk-spec/sdk-spec.md` §11 for the full versioning policy.
 
+## Concordia MCP client (`@concordex/sdk/concordia`)
+
+Concordia is Concordex's governance MCP server — customer agents
+speak [MCP 1.0](https://modelcontextprotocol.io/) to it to enforce
+covenants, record audit decisions, query installed Canons, and read
+soul snapshots on subjects under observation.
+
+The package ships a typed client for it alongside the agent-stream
+surface. Subpath export for tree-shaking:
+
+```ts
+import { ConcordiaClient } from "@concordex/sdk/concordia";
+
+const client = new ConcordiaClient({ apiKey: process.env.CONCORDEX_API_KEY! });
+
+// Pre-flight check — does policy allow this action?
+const v = await client.enforceCovenant({
+  subjectId:     "user:alice",
+  actionKind:    "payment.issue",
+  actionPayload: { amount: 9900, currency: "usd" },
+  context:       { sessionId: "s_42", model: "claude-sonnet-4-6" },
+});
+if (v.verdict === "block") return safeFallback(v.rationale);
+
+// Audit record after the fact
+await client.recordDecision({
+  subjectId:    "user:alice",
+  decisionKind: "payment_issued",
+  payload:      { refundId: "re_123", amount: 9900 },
+  outcome:      "completed",
+});
+
+// Read installed policy Canons (cacheable at session start)
+for (const p of await client.workspacePolicies()) {
+  console.log(p.name, p.action, p.enabled);
+}
+
+// Search Canons for relevant policy text
+const r = await client.queryCorpus({ query: "how do we handle refund pressure?" });
+for (const m of r.matches) console.log(`${m.canonId}/${m.section}: ${m.excerpt}`);
+
+// Stream through the workspace's audit chain
+for await (const entry of client.iterLedger({ since: 0, limit: 100 })) {
+  verify(entry.prevHash, entry.hash, entry.payload);
+}
+```
+
+Errors map 1:1 to the MCP spec §8 codes:
+`ConcordiaAuthError`, `ConcordiaQuotaExceededError`,
+`ConcordiaPolicyEngineUnavailableError`,
+`ConcordiaCanonNotInstalledError`,
+`ConcordiaSubjectNotFoundError`,
+`ConcordiaCircuitOpenError`,
+`ConcordiaPermissionDeniedError`. All extend `ConcordiaError`, so
+`catch (e) { if (e instanceof ConcordiaError) ... }` covers every
+failure mode.
+
+Under TypeScript 5.2+ with explicit-resource-management:
+
+```ts
+await using client = new ConcordiaClient({ apiKey: "ck_..." });
+await client.enforceCovenant({ ... });
+// `client` is disposed at scope exit
+```
+
+See [`CONCORDIA_MCP.md`](https://github.com/praeceptor-thesis/concordex-sdk-spec/blob/main/CONCORDIA_MCP.md)
+for the underlying protocol specification.
+
 ## License
 
 Apache-2.0 — see [LICENSE](./LICENSE).

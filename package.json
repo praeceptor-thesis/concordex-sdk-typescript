@@ -1,7 +1,7 @@
 {
   "name": "@concordex/sdk",
-  "version": "0.5.0",
-  "description": "TypeScript SDK for Concordex — the codex of trust between minds. Emit agent-stream events, run circuit-breaker checks, verify signed webhooks.",
+  "version": "0.6.0",
+  "description": "TypeScript SDK for Concordex — the codex of trust between minds. Emit agent-stream events, run circuit-breaker checks, verify signed webhooks, govern via the Concordia MCP.",
   "license": "Apache-2.0",
   "author": "Eastern Shore Solutions",
   "homepage": "https://concordex.dev",
@@ -30,6 +30,11 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.cjs"
     },
+    "./concordia": {
+      "types": "./dist/types/concordia.d.ts",
+      "import": "./dist/esm/concordia.js",
+      "require": "./dist/cjs/concordia.cjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -44,7 +49,7 @@
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs && npm run build:types",
     "build:esm": "tsc -p tsconfig.build.esm.json",
-    "build:cjs": "tsc -p tsconfig.build.cjs.json && node -e \"require('fs').renameSync('dist/cjs/index.js','dist/cjs/index.cjs')\"",
+    "build:cjs": "tsc -p tsconfig.build.cjs.json && node -e \"const fs=require('fs');for(const f of ['index','concordia']){const a='dist/cjs/'+f+'.js';if(fs.existsSync(a))fs.renameSync(a,'dist/cjs/'+f+'.cjs');}\"",
     "build:types": "tsc -p tsconfig.build.types.json",
     "clean": "rm -rf dist",
     "test": "vitest run",

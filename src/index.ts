@@ -68,5 +68,18 @@ export {
 
 export { verifyWebhookSignature } from "./webhook.js";
 
-/** Pinned spec version this SDK implements (spec §11.1). */
+/**
+ * Concordia MCP client — the governance side of Concordex. Same shape
+ * as the Python `concordex.concordia` submodule. Prefer the subpath
+ * import for tree-shaking:
+ *
+ *   import { ConcordiaClient } from "@concordex/sdk/concordia";
+ *
+ * The namespace re-export below is provided for symmetry; bundlers
+ * that don't support package subpaths can still reach the client via
+ * `concordia.ConcordiaClient`.
+ */
+export * as concordia from "./concordia.js";
+
+/** Pinned spec version the agent-stream surface implements (spec §11.1). */
 export const SPEC_VERSION = "0.5.0";
