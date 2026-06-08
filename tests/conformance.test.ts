@@ -236,7 +236,14 @@ describe("contract: golden-envelopes", () => {
                 latency_ms: 0,
                 route_latency_ms: 0,
               }
-            : { interaction_id: "int_stub", subjects: [], queued: false },
+            : {
+                interaction_id: "int_stub",
+                subjects: [],
+                frame_id: "frm_stub",
+                accepted: true,
+                n_workspaces: 1,
+                follow_my_data: "/v1/frames/frm_stub/story",
+              },
       });
       const client = buildClient(stub.fetch);
       await callMethod(client, fixture.method, fixture.args);
@@ -246,11 +253,11 @@ describe("contract: golden-envelopes", () => {
       expect(req.method).toBe("POST");
       expect(req.path).toBe(fixture.expected_path);
 
-      // Header sanity — Authorization, Content-Type, User-Agent.
+      // Header sanity — X-Concordex-Key, Content-Type, User-Agent.
       const ua = req.headers["User-Agent"] ?? req.headers["user-agent"];
-      const auth = req.headers["Authorization"] ?? req.headers["authorization"];
+      const auth = req.headers["X-Concordex-Key"] ?? req.headers["x-concordex-key"];
       const ct = req.headers["Content-Type"] ?? req.headers["content-type"];
-      expect(auth).toBe(`Bearer ${API_KEY}`);
+      expect(auth).toBe(API_KEY);
       expect(ct).toBe("application/json");
       expect(ua).toMatch(/^concordex-typescript\/0\.5\.0/);
 

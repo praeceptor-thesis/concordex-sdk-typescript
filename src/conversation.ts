@@ -8,12 +8,12 @@
  *
  *   using conv = cx.conversation({
  *     participants: [
- *       { subject_id: "user:ws:bot",  role: "agent",    kind: "agent" },
- *       { subject_id: "user:ws:cust", role: "customer", kind: "human" },
+ *       { subject_id: "subject:dv:bot",  role: "agent",    kind: "agent" },
+ *       { subject_id: "subject:dv:cust", role: "customer", kind: "human" },
  *     ],
  *   });
- *   await conv.says("user:ws:cust", "I want a refund.");
- *   await conv.says("user:ws:bot",  "I can help.");
+ *   await conv.says("subject:dv:cust", "I want a refund.");
+ *   await conv.says("subject:dv:bot",  "I can help.");
  *
  * The interaction_id is captured from the first event the server
  * returns and re-sent on subsequent calls so events stitch into the
@@ -241,8 +241,9 @@ export class Conversation {
     typeof Symbol.dispose === "symbol"
       ? Symbol.dispose
       : (Symbol.for("nodejs.dispose") as unknown as typeof Symbol.dispose);
-  if (disposeSymbol && !(Conversation.prototype as Record<symbol, unknown>)[disposeSymbol]) {
-    (Conversation.prototype as Record<symbol, unknown>)[disposeSymbol] = function (
+  const proto = Conversation.prototype as unknown as Record<symbol, unknown>;
+  if (disposeSymbol && !proto[disposeSymbol]) {
+    proto[disposeSymbol] = function (
       this: Conversation,
     ): void {
       this.close();

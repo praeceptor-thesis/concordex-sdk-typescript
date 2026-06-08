@@ -25,26 +25,26 @@ its own `.d.ts` types.
 ## Quickstart
 
 ```ts
-import { Concordex, CBOpenError } from "@concordex/sdk";
+import { Concordex, CBOpenError, subjectForDivision } from "@concordex/sdk";
 
 const cx = new Concordex({ apiKey: "ck_..." }); // get one from your tenant_admin
+const divisionId = "dv_...";
+const bot = subjectForDivision(divisionId, "checkout bot", { role: "agent", kind: "agent" });
+const customer = subjectForDivision(divisionId, "customer anon", { role: "customer", kind: "human" });
 
 const conv = cx.conversation({
-  participants: [
-    { subject_id: "user:ws_xxx:checkout-bot",  role: "agent",    kind: "agent" },
-    { subject_id: "user:ws_xxx:customer-anon", role: "customer", kind: "human" },
-  ],
+  participants: [bot, customer],
 });
 
-await conv.says("user:ws_xxx:customer-anon", "I want a refund.");
-await conv.says("user:ws_xxx:checkout-bot",  "I can help with that.");
+await conv.says(customer.subject_id, "I want a refund.");
+await conv.says(bot.subject_id, "I can help with that.");
 
 // Before doing something sensitive, check the breaker. The `using`
 // declaration releases the handle when the block exits.
 {
-  using g = await conv.guard("user:ws_xxx:checkout-bot", { raiseOnOpen: true });
+  using g = await conv.guard(bot.subject_id, { raiseOnOpen: true });
   await conv.toolCall(
-    "user:ws_xxx:checkout-bot",
+    bot.subject_id,
     "refund.issue",
     { amount: 9900 },
   );
@@ -94,30 +94,29 @@ you can use directly when conversations don't fit the
 one-agent-one-customer shape:
 
 ```ts
-import { Concordex } from "@concordex/sdk";
+import { Concordex, subjectForDivision } from "@concordex/sdk";
 
 const cx = new Concordex({ apiKey: "ck_..." });
+const bot = subjectForDivision("dv_...", "checkout bot", { role: "agent", kind: "agent" });
+const customer = subjectForDivision("dv_...", "customer anon", { role: "customer", kind: "human" });
 
 const result = await cx.subjectSays({
-  agentSubjectId: "user:ws_xxx:checkout-bot",
-  subjectId:      "user:ws_xxx:customer-anon",
+  agentSubjectId: bot.subject_id,
+  subjectId:      customer.subject_id,
   text:           "I want a refund.",
-  subjects: [
-    { subject_id: "user:ws_xxx:checkout-bot",  role: "agent",    kind: "agent" },
-    { subject_id: "user:ws_xxx:customer-anon", role: "customer", kind: "human" },
-  ],
+  subjects: [bot, customer],
 });
 const iid = result.interactionId;
 
 await cx.toolCall({
   interactionId: iid,
-  subjectId:     "user:ws_xxx:checkout-bot",
+  subjectId:     bot.subject_id,
   tool:          "refund.issue",
   args:          { amount: 9900 },
 });
 
 // CB check
-const g = await cx.check({ subjectId: "user:ws_xxx:checkout-bot" });
+const g = await cx.check({ subjectId: bot.subject_id });
 if (!g.allow) {
   return refuse(g.reason);
 }
@@ -130,7 +129,7 @@ Two shapes, same engine.
 ### Result-style (inspect the boolean)
 
 ```ts
-const g = await cx.check({ subjectId: "user:ws_xxx:bot" });
+const g = await cx.check({ subjectId: "subject:dv_demo:bot" });
 if (!g.allow) {
   logForReview(g.reason, g.firedPolicies, g.anchor);
   return;
@@ -147,7 +146,7 @@ form below.
 
 ```ts
 {
-  using g = await cx.guard({ subjectId: "user:ws_xxx:bot" });
+  using g = await cx.guard({ subjectId: "subject:dv_demo:bot" });
   if (!g.result.allow) return refuse(g.result.reason);
   // ...sensitive action
 }
@@ -158,7 +157,7 @@ form below.
 ```ts
 try {
   using g = await cx.guard({
-    subjectId: "user:ws_xxx:bot",
+    subjectId: "subject:dv_demo:bot",
     raiseOnOpen: true,
   });
   await doSensitiveThing();
@@ -178,7 +177,7 @@ callback as the second argument:
 
 ```ts
 await cx.guard(
-  { subjectId: "user:ws_xxx:bot", raiseOnOpen: true },
+  { subjectId: "subject:dv_demo:bot", raiseOnOpen: true },
   async (result) => {
     if (!result.allow) return refuse(result.reason);
     await doSensitiveThing();

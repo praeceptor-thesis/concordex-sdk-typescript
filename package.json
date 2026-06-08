@@ -30,6 +30,11 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.cjs"
     },
+    "./agent": {
+      "types": "./dist/types/agent.d.ts",
+      "import": "./dist/esm/agent.js",
+      "require": "./dist/cjs/agent.cjs"
+    },
     "./concordia": {
       "types": "./dist/types/concordia.d.ts",
       "import": "./dist/esm/concordia.js",
@@ -49,16 +54,13 @@
   "scripts": {
     "build": "npm run build:esm && npm run build:cjs && npm run build:types",
     "build:esm": "tsc -p tsconfig.build.esm.json",
-    "build:cjs": "tsc -p tsconfig.build.cjs.json && node -e \"const fs=require('fs');for(const f of ['index','concordia']){const a='dist/cjs/'+f+'.js';if(fs.existsSync(a))fs.renameSync(a,'dist/cjs/'+f+'.cjs');}\"",
+    "build:cjs": "tsc -p tsconfig.build.cjs.json && node -e \"const fs=require('fs');for(const f of ['index','agent','concordia']){const a='dist/cjs/'+f+'.js';const b='dist/cjs/'+f+'.cjs';if(fs.existsSync(a))fs.copyFileSync(a,b);}fs.writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'})+'\\n');\"",
     "build:types": "tsc -p tsconfig.build.types.json",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:conformance": "vitest run tests/conformance.test.ts",
     "prepublishOnly": "npm run clean && npm run build"
-  },
-  "dependencies": {
-    "undici": "^6.19.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

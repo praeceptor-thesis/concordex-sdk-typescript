@@ -14,12 +14,12 @@
  *   const cx = new Concordex({ apiKey: "ck_..." });
  *
  *   await cx.subjectSays({
- *     agentSubjectId: "user:ws:bot",
- *     subjectId:      "user:ws:cust",
+ *     agentSubjectId: "subject:dv:bot",
+ *     subjectId:      "subject:dv:cust",
  *     text:           "I want a refund.",
  *   });
  *
- *   const g = await cx.check({ subjectId: "user:ws:bot" });
+ *   const g = await cx.check({ subjectId: "subject:dv:bot" });
  *   if (!g.allow) return refuse(g.reason);
  *
  * See README.md for the full conceptual model and additional examples.
@@ -42,6 +42,15 @@ export {
 } from "./client.js";
 
 export { Conversation } from "./conversation.js";
+
+export {
+  slugifySubject,
+  subjectIdForDivision,
+  subjectForDivision,
+  isCanonicalSubjectId,
+  type SubjectIdOptions,
+  type SubjectForDivisionOptions,
+} from "./subjects.js";
 
 export {
   type EmitResult,

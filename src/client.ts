@@ -8,29 +8,26 @@
  *   const cx = new Concordex({ apiKey: "ck_..." });
  *
  *   await cx.subjectSays({
- *     agentSubjectId: "user:ws:bot",
- *     subjectId:      "user:ws:cust",
+ *     agentSubjectId: "subject:dv:bot",
+ *     subjectId:      "subject:dv:cust",
  *     text:           "I want a refund.",
  *   });
  *
- *   const g = await cx.check({ subjectId: "user:ws:bot" });
+ *   const g = await cx.check({ subjectId: "subject:dv:bot" });
  *   if (!g.allow) return refuse(g.reason);
  *
  * Naming follows spec §8: `Concordex` (no `Client` suffix), camelCase
  * methods and option keys, `…Error` exception names.
  *
- * Auth: every request carries `Authorization: Bearer ck_…`. The API key
- * resolves server-side to the workspace; the wire never carries a
- * workspace id directly. The legacy `X-Concordex-Key` header is not
- * supported — spec is Bearer-only.
+ * Auth: agent-stream and circuit-breaker requests carry
+ * `X-Concordex-Key: ck_…`. The API key resolves server-side to the
+ * workspace; the wire never carries a workspace id directly.
  *
- * Transport: by default the client uses `undici`'s `fetch` for stable
- * Node ≥ 18 semantics, but a custom `fetch` impl can be injected at
- * construction time (the contract-test runner uses this to stub the
+ * Transport: by default the client uses the runtime's global `fetch`
+ * (Node >= 18, browsers, Workers). A custom `fetch` impl can be injected
+ * at construction time (the contract-test runner uses this to stub the
  * HTTP layer).
  */
-
-import { fetch as undiciFetch } from "undici";
 
 import { Conversation as ConversationImpl } from "./conversation.js";
 import {
@@ -71,8 +68,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const SPEC_VERSION = "0.5.0";
 const DEFAULT_USER_AGENT = `concordex-typescript/${SPEC_VERSION}`;
 
-// Type alias compatible with both global `fetch` and undici's `fetch`.
-// We don't import @types/undici; the call sites only need
+// Type alias compatible with global `fetch`. The call sites only need
 // `(url, init) => Promise<Response>` so we use the widest viable type.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type FetchLike = (input: any, init?: any) => Promise<any>;
@@ -185,13 +181,14 @@ export class Concordex {
     this.#baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.#timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     this.#userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    // Prefer the injected fetch (tests), then undici (stable Node fetch),
-    // then the global. undici's fetch supports `AbortSignal` and the same
-    // Response shape across Node 18/20/22.
-    this.#fetch =
-      options.fetch ??
-      (undiciFetch as unknown as FetchLike) ??
-      (globalThis.fetch as unknown as FetchLike);
+    const injectedFetch = options.fetch;
+    if (injectedFetch) {
+      this.#fetch = injectedFetch;
+    } else if (typeof globalThis.fetch === "function") {
+      this.#fetch = globalThis.fetch.bind(globalThis) as FetchLike;
+    } else {
+      throw new ValidationError("fetch is not available; provide options.fetch");
+    }
   }
 
   // ===================================================================== //
@@ -385,14 +382,14 @@ export class Concordex {
    * Disposable form (TS 5.2+):
    *
    *   {
-   *     using g = await cx.guard({ subjectId: "user:ws:bot" });
+   *     using g = await cx.guard({ subjectId: "subject:dv:bot" });
    *     if (!g.result.allow) return refuse(g.result.reason);
    *     // ...sensitive action
    *   }
    *
    * Callback fallback (for runtimes without explicit-resource-management):
    *
-   *   await cx.guard({ subjectId: "user:ws:bot" }, async (result) => {
+   *   await cx.guard({ subjectId: "subject:dv:bot" }, async (result) => {
    *     if (!result.allow) return refuse(result.reason);
    *     await doSensitiveThing();
    *   });
@@ -473,7 +470,7 @@ export class Concordex {
       response = (await this.#fetch(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.#apiKey}`,
+          "X-Concordex-Key": this.#apiKey,
           "Content-Type": "application/json",
           "User-Agent": this.#userAgent,
         },
@@ -546,17 +543,23 @@ function buildGuardHandle(result: CheckResult): GuardHandle {
   // backs the `using` declaration. We polyfill the symbol if the runtime
   // hasn't surfaced it yet — older Node versions still need the value
   // even though `using` itself is a TS 5.2+ syntax sugar.
-  const disposeSymbol =
+  const runtimeDisposeSymbol =
     typeof Symbol.dispose === "symbol"
       ? Symbol.dispose
       : (Symbol.for("nodejs.dispose") as unknown as typeof Symbol.dispose);
   const handle: GuardHandle = {
     result,
-    [disposeSymbol]: () => {
+    [Symbol.dispose]: () => {
       // Currently a no-op (parity with conversation.close()). Reserved
       // for a future end_check signal once the wire supports it.
     },
   };
+  if (runtimeDisposeSymbol !== Symbol.dispose) {
+    Object.defineProperty(handle, runtimeDisposeSymbol, {
+      value: handle[Symbol.dispose],
+      enumerable: false,
+    });
+  }
   return handle;
 }
 

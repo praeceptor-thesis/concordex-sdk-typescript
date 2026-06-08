@@ -19,7 +19,7 @@ export type Outcome =
   | "rejected"
   | "error";
 
-export type CBState = "closed" | "half_open" | "open";
+export type CBState = "closed" | "half_open" | "hold" | "open";
 
 export type TriageDecision = "deep" | "shallow";
 
@@ -53,18 +53,20 @@ export interface Subject {
 /**
  * Returned by every event-emit method (`subjectSays`, `toolCall`, …).
  *
- * In async mode (`X-Concordex-Async: true`) the server returns only
- * `interactionId`, `subjects`, and `queued=true`. In the default sync
- * mode the rich envelope is populated. The optional fields below are
- * therefore present in sync mode and absent in async mode; consumers
- * MUST treat `undefined` as "unknown", not as "empty".
+ * In accepted-only mode the server returns `interactionId`, `subjects`,
+ * `frameId`, `accepted`, `nWorkspaces`, and `followMyData`; consumers
+ * fetch per-workspace reasoning outcomes out-of-band. Older sync
+ * envelopes can still populate the rich fields below. Consumers MUST
+ * treat `undefined` as "unknown", not as "empty".
  */
 export interface EmitResult {
   readonly interactionId: string;
   readonly subjects: ReadonlyArray<string>;
   readonly queued: boolean;
+  readonly accepted?: boolean;
+  readonly nWorkspaces?: number;
 
-  // Sync-mode-only fields (spec §7.1).
+  // Accepted-only and sync envelopes.
   readonly frameId?: string;
   readonly subjectId?: string;
   readonly outcome?: Outcome | string; // tolerate unknown enum values
@@ -73,7 +75,8 @@ export interface EmitResult {
   readonly scoredByCanons?: ReadonlyArray<string>;
   readonly soulVersion?: number;
   readonly ledgerIndex?: number;
-  readonly followMyData?: string;
+  readonly followMyData?: string | null;
+  readonly error?: unknown;
 
   /** Full server JSON response (verbatim). */
   readonly raw: Readonly<Record<string, unknown>>;
@@ -90,16 +93,23 @@ export function emitResultFromResponse(
   const subjects: ReadonlyArray<string> = Array.isArray(subjectsField)
     ? (subjectsField.filter((s) => typeof s === "string") as string[])
     : [];
+  const accepted =
+    typeof data["accepted"] === "boolean" ? (data["accepted"] as boolean) : undefined;
   // Default queued=true matches the Python SDK's behavior when the
-  // server omits the field; sync responses always carry `queued: false`
-  // explicitly, so this only fires when nothing came back at all.
+  // server omits the field. Accepted-only responses omit `queued`, so
+  // use `accepted` when present to avoid treating rejected ingest as
+  // successfully queued.
   const queued =
-    typeof data["queued"] === "boolean" ? (data["queued"] as boolean) : true;
+    typeof data["queued"] === "boolean" ? (data["queued"] as boolean) : accepted ?? true;
 
   const result: EmitResult = {
     interactionId,
     subjects,
     queued,
+    ...(typeof accepted === "boolean" ? { accepted } : {}),
+    ...(typeof data["n_workspaces"] === "number"
+      ? { nWorkspaces: data["n_workspaces"] as number }
+      : {}),
     ...(typeof data["frame_id"] === "string"
       ? { frameId: data["frame_id"] as string }
       : {}),
@@ -132,8 +142,13 @@ export function emitResultFromResponse(
     ...(typeof data["ledger_index"] === "number"
       ? { ledgerIndex: data["ledger_index"] as number }
       : {}),
-    ...(typeof data["follow_my_data"] === "string"
-      ? { followMyData: data["follow_my_data"] as string }
+    ...(
+      typeof data["follow_my_data"] === "string" || data["follow_my_data"] === null
+        ? { followMyData: data["follow_my_data"] as string | null }
+        : {}
+    ),
+    ...(data["error"] !== undefined
+      ? { error: data["error"] }
       : {}),
     raw: Object.freeze({ ...data }),
   };
