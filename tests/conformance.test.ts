@@ -1,5 +1,5 @@
 /**
- * Contract-test runner — drives the JSON corpus from `concordex-sdk-spec`.
+ * Contract-test runner — drives the JSON corpus from `dmzagent-sdk-spec`.
  *
  * Three corpora (spec §10):
  *   1. golden-envelopes.json — input → expected wire body
@@ -7,7 +7,7 @@
  *   3. error-mapping.json — HTTP status → exception type
  *
  * The CI workflow checks out the spec repo at the pinned tag from
- * package.json#concordex.specVersion and runs `npm run test:conformance`.
+ * package.json#dmzagent.specVersion and runs `npm run test:conformance`.
  */
 
 import { createHmac } from "node:crypto";
@@ -16,8 +16,8 @@ import { describe, expect, it } from "vitest";
 import {
   CBOpenError,
   AuthError,
-  Concordex,
-  ConcordexError,
+  DMZAgent,
+  DMZAgentError,
   PermissionError,
   ServerError,
   ValidationError,
@@ -91,8 +91,8 @@ const API_KEY = "ck_test_xxxxxxxxxxxxxxxxxxxxx";
 function buildClient(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fetchImpl: (input: any, init?: any) => Promise<Response>,
-): Concordex {
-  return new Concordex({
+): DMZAgent {
+  return new DMZAgent({
     apiKey: API_KEY,
     baseUrl: "https://api.test.local",
     fetch: fetchImpl,
@@ -105,7 +105,7 @@ function buildClient(
  * the camelCase TypeScript option keys here.
  */
 async function callMethod(
-  client: Concordex,
+  client: DMZAgent,
   method: string,
   args: Record<string, unknown>,
 ): Promise<unknown> {
@@ -188,7 +188,7 @@ async function callMethod(
         raiseOnOpen: args["raise_on_open"] as boolean,
       });
     case "construct":
-      return new Concordex({ apiKey: args["api_key"] as string });
+      return new DMZAgent({ apiKey: args["api_key"] as string });
     default:
       throw new Error(`unsupported method in corpus: ${method}`);
   }
@@ -201,7 +201,7 @@ function canonicalType(err: unknown): string | null {
   if (err instanceof PermissionError) return "PermissionError";
   if (err instanceof ValidationError) return "ValidationError";
   if (err instanceof ServerError) return "ServerError";
-  if (err instanceof ConcordexError) return "ConcordexError";
+  if (err instanceof DMZAgentError) return "DMZAgentError";
   if (err instanceof Error) return err.name || "Error";
   return null;
 }
@@ -253,13 +253,13 @@ describe("contract: golden-envelopes", () => {
       expect(req.method).toBe("POST");
       expect(req.path).toBe(fixture.expected_path);
 
-      // Header sanity — X-Concordex-Key, Content-Type, User-Agent.
+      // Header sanity — X-DMZAgent-Key, Content-Type, User-Agent.
       const ua = req.headers["User-Agent"] ?? req.headers["user-agent"];
-      const auth = req.headers["X-Concordex-Key"] ?? req.headers["x-concordex-key"];
+      const auth = req.headers["X-DMZAgent-Key"] ?? req.headers["x-dmzagent-key"];
       const ct = req.headers["Content-Type"] ?? req.headers["content-type"];
       expect(auth).toBe(API_KEY);
       expect(ct).toBe("application/json");
-      expect(ua).toMatch(/^concordex-typescript\/0\.5\.0/);
+      expect(ua).toMatch(/^dmzagent-typescript\/0\.5\.0/);
 
       const gotNorm = normalizedJsonString(req.body);
       const wantNorm = normalizedJsonString(fixture.expected_body);
@@ -273,7 +273,7 @@ describe("contract: golden-envelopes", () => {
       let thrown: unknown = null;
       try {
         if (fixture.method === "construct") {
-          new Concordex({ apiKey: fixture.args["api_key"] as string });
+          new DMZAgent({ apiKey: fixture.args["api_key"] as string });
         } else {
           const client = buildClient(stub.fetch);
           await callMethod(client, fixture.method, fixture.args);

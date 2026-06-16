@@ -1,16 +1,16 @@
 /**
- * Exception hierarchy for the Concordex TypeScript SDK.
+ * Exception hierarchy for the DMZAgent TypeScript SDK.
  *
  * The hierarchy is deliberately shallow — most consumers only need to
- * catch `ConcordexError` to bail out gracefully, or `CBOpenError`
+ * catch `DMZAgentError` to bail out gracefully, or `CBOpenError`
  * specifically when they want to handle a blocked subject differently
  * from other failures.
  *
- *   ConcordexError                base
+ *   DMZAgentError                base
  *     |- AuthError                API key invalid / expired / revoked
  *     |- PermissionError          key valid but lacks the needed scope
  *     |- ValidationError          server rejected the payload as malformed
- *     |- ServerError              5xx from Concordex; safe to retry
+ *     |- ServerError              5xx from DMZAgent; safe to retry
  *     \- CBOpenError              cb.check() returned open — action blocked
  *
  * `CBOpenError` is intentionally an `Error` (not just a flag) so that
@@ -23,7 +23,7 @@
  *   - `body`        parsed response body (object / string / null)
  *
  * The original network or parse error is preserved via the standard
- * ES2022 `Error.cause` mechanism — `new ConcordexError("...", { cause: e })`.
+ * ES2022 `Error.cause` mechanism — `new DMZAgentError("...", { cause: e })`.
  */
 
 import type { FiredPolicy, AnchorRef } from "./models.js";
@@ -36,20 +36,20 @@ import type { FiredPolicy, AnchorRef } from "./models.js";
  */
 export type ErrorBody = Record<string, unknown> | string | null;
 
-export interface ConcordexErrorInit {
+export interface DMZAgentErrorInit {
   statusCode?: number | null;
   body?: ErrorBody | unknown;
   cause?: unknown;
 }
 
-export class ConcordexError extends Error {
+export class DMZAgentError extends Error {
   public readonly statusCode: number | null;
   public readonly body: ErrorBody;
 
-  constructor(message: string, init: ConcordexErrorInit = {}) {
+  constructor(message: string, init: DMZAgentErrorInit = {}) {
     // ES2022 Error supports { cause } on the options bag.
     super(message, init.cause !== undefined ? { cause: init.cause } : undefined);
-    this.name = "ConcordexError";
+    this.name = "DMZAgentError";
     this.statusCode = init.statusCode ?? null;
     this.body = normalizeBody(init.body);
     // Preserve prototype chain for instanceof checks under transpilation.
@@ -65,46 +65,46 @@ function normalizeBody(value: unknown): ErrorBody {
   return String(value);
 }
 
-export class AuthError extends ConcordexError {
-  constructor(message: string, init: ConcordexErrorInit = {}) {
+export class AuthError extends DMZAgentError {
+  constructor(message: string, init: DMZAgentErrorInit = {}) {
     super(message, init);
     this.name = "AuthError";
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-export class PermissionError extends ConcordexError {
-  constructor(message: string, init: ConcordexErrorInit = {}) {
+export class PermissionError extends DMZAgentError {
+  constructor(message: string, init: DMZAgentErrorInit = {}) {
     super(message, init);
     this.name = "PermissionError";
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-export class ValidationError extends ConcordexError {
-  constructor(message: string, init: ConcordexErrorInit = {}) {
+export class ValidationError extends DMZAgentError {
+  constructor(message: string, init: DMZAgentErrorInit = {}) {
     super(message, init);
     this.name = "ValidationError";
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-export class ServerError extends ConcordexError {
-  constructor(message: string, init: ConcordexErrorInit = {}) {
+export class ServerError extends DMZAgentError {
+  constructor(message: string, init: DMZAgentErrorInit = {}) {
     super(message, init);
     this.name = "ServerError";
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-export interface CBOpenErrorInit extends ConcordexErrorInit {
+export interface CBOpenErrorInit extends DMZAgentErrorInit {
   reason?: string;
   firedPolicies?: ReadonlyArray<FiredPolicy>;
   anchor?: AnchorRef | null;
   scopeRef?: string;
 }
 
-export class CBOpenError extends ConcordexError {
+export class CBOpenError extends DMZAgentError {
   public readonly reason: string;
   public readonly firedPolicies: ReadonlyArray<FiredPolicy>;
   public readonly anchor: AnchorRef | null;

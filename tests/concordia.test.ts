@@ -1,5 +1,5 @@
 /**
- * Tests for `@concordex/sdk/concordia` — the MCP 1.0 governance client.
+ * Tests for `@dmzagent/sdk/concordia` — the MCP 1.0 governance client.
  *
  * Mocks the wire by injecting a `fetch` stub that handles JSON-RPC
  * dispatch in-process. Server-side end-to-end is covered by
@@ -131,7 +131,7 @@ beforeEach(() => {
 
 describe("ConcordiaClient construction", () => {
   it("requires an api key", () => {
-    delete process.env["CONCORDEX_API_KEY"];
+    delete process.env["DMZAGENT_API_KEY"];
     expect(() => new ConcordiaClient({ fetch: fake.toFetch() }))
       .toThrowError(/apiKey required/);
   });
@@ -143,11 +143,11 @@ describe("ConcordiaClient construction", () => {
     })).toThrowError(/must start with 'ck_'/);
   });
 
-  it("reads CONCORDEX_API_KEY from env", () => {
-    process.env["CONCORDEX_API_KEY"] = "ck_from_env";
+  it("reads DMZAGENT_API_KEY from env", () => {
+    process.env["DMZAGENT_API_KEY"] = "ck_from_env";
     const c = new ConcordiaClient({ fetch: fake.toFetch() });
     expect(c).toBeInstanceOf(ConcordiaClient);
-    delete process.env["CONCORDEX_API_KEY"];
+    delete process.env["DMZAGENT_API_KEY"];
   });
 
   it("sends bearer auth on every request", async () => {
@@ -372,7 +372,7 @@ describe("workspace resources", () => {
       workspace_id: "ws_test", count: 1,
       canons: [{
         canon_id: "cn_compliance", name: "Compliance Canon",
-        category: "compliance", author_name: "Concordex",
+        category: "compliance", author_name: "DMZAgent",
         latest_version: "1.2.0", short_description: "SOC 2 + EU AI Act",
         icon_url: null, enabled: true, installed_at: "2026-04-01T00:00:00Z",
       }],

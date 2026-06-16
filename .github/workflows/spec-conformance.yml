@@ -1,7 +1,7 @@
 name: spec-conformance
 
-# Runs the contract-test corpus from concordex-sdk-spec at the tag
-# pinned in package.json#concordex.specVersion. Sets the GitHub status
+# Runs the contract-test corpus from dmzagent-sdk-spec at the tag
+# pinned in package.json#dmzagent.specVersion. Sets the GitHub status
 # check `spec-conformance/<version>` that promote.yml in the spec repo
 # polls before dispatching publish.
 
@@ -38,9 +38,9 @@ jobs:
         id: spec
         working-directory: sdk
         run: |
-          VERSION=$(node -p "require('./package.json').concordex.specVersion")
+          VERSION=$(node -p "require('./package.json').dmzagent.specVersion")
           if [ -z "$VERSION" ] || [ "$VERSION" = "undefined" ]; then
-            echo "::error::package.json missing concordex.specVersion"
+            echo "::error::package.json missing dmzagent.specVersion"
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -65,7 +65,7 @@ jobs:
       - name: Checkout spec
         uses: actions/checkout@v4
         with:
-          repository: praeceptor-thesis/concordex-sdk-spec
+          repository: praeceptor-thesis/dmzagent-sdk-spec
           ref: ${{ steps.spec_ref.outputs.ref }}
           path: spec
 
@@ -98,7 +98,7 @@ jobs:
       - name: Run conformance corpus
         working-directory: sdk
         env:
-          CONCORDEX_SPEC_PATH: ${{ github.workspace }}/spec
+          DMZAGENT_SPEC_PATH: ${{ github.workspace }}/spec
         run: npm run test:conformance
 
       - name: Publish status check

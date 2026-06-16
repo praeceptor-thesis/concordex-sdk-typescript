@@ -1,7 +1,7 @@
 /**
  * Webhook signature verification.
  *
- * Concordex outbound webhooks are signed with HMAC-SHA256 using the
+ * DMZAgent outbound webhooks are signed with HMAC-SHA256 using the
  * subscription's secret. The signature is carried in a header of the
  * form:
  *

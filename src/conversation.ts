@@ -21,14 +21,14 @@
  */
 
 import type {
-  Concordex,
+  DMZAgent,
   ConversationOptions,
   GuardHandle,
 } from "./client.js";
 import { ValidationError } from "./errors.js";
 import type { CheckResult, EmitResult, Subject } from "./models.js";
 
-// NOTE: Importing `Concordex` as `import type` keeps this file at the
+// NOTE: Importing `DMZAgent` as `import type` keeps this file at the
 // type level of the client module, breaking the runtime cycle that
 // would otherwise form (client.ts imports Conversation at runtime).
 
@@ -38,7 +38,7 @@ import type { CheckResult, EmitResult, Subject } from "./models.js";
 const AGENT_ROLES = new Set(["agent", "service", "system"]);
 
 export class Conversation {
-  readonly #client: Concordex;
+  readonly #client: DMZAgent;
   readonly #agentSubjectId: string;
   readonly #interactionKind: string;
   // Roster is mutable internally via addSubject; we hand out a frozen
@@ -47,7 +47,7 @@ export class Conversation {
   #interactionId: string | null = null;
   #closed = false;
 
-  constructor(client: Concordex, opts: ConversationOptions) {
+  constructor(client: DMZAgent, opts: ConversationOptions) {
     if (!opts || !Array.isArray(opts.participants) || opts.participants.length === 0) {
       throw new ValidationError("participants must be a non-empty array");
     }

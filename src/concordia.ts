@@ -1,14 +1,14 @@
 /**
- * Concordex — Concordia MCP 1.0 client.
+ * DMZAgent — Concordia MCP 1.0 client.
  *
- * Companion to `@concordex/sdk` for the governance MCP at `/mcp/v1`.
+ * Companion to `@dmzagent/sdk` for the governance MCP at `/mcp/v1`.
  * The customer-facing surface for enforcing covenants, recording
  * audit decisions, querying installed Canons, and reading soul
  * snapshots — without writing JSON-RPC envelopes by hand.
  *
  * Usage:
  *
- *   import { ConcordiaClient } from "@concordex/sdk/concordia";
+ *   import { ConcordiaClient } from "@dmzagent/sdk/concordia";
  *
  *   const client = new ConcordiaClient({ apiKey: "ck_live_…" });
  *
@@ -27,7 +27,7 @@
  *     outcome: "completed",
  *   });
  *
- * Spec: CONCORDIA_MCP.md (server side) and concordex-sdk-spec §8
+ * Spec: CONCORDIA_MCP.md (server side) and dmzagent-sdk-spec §8
  * (TypeScript naming conventions). Implements MCP 1.0 — server
  * milestones MCP-1.1 through MCP-1.3.
  *
@@ -38,7 +38,7 @@
  * exposed by this client is camelCase TypeScript.
  */
 
-// We deliberately don't import `undici`. The agent-stream `Concordex`
+// We deliberately don't import `undici`. The agent-stream `DMZAgent`
 // client uses it for stable Node 18 fetch semantics; for Concordia
 // the global fetch (Node 22+, all browsers) is sufficient and keeps
 // the bundle smaller. If a customer needs the undici behavior they
@@ -55,7 +55,7 @@ export const JRPC_METHOD_NOT_FND = -32601;
 export const JRPC_INVALID_PARAMS = -32602;
 export const JRPC_INTERNAL_ERR   = -32603;
 
-/** Concordex-specific MCP application error codes (spec §8). */
+/** DMZAgent-specific MCP application error codes (spec §8). */
 export const MCP_AUTH_EXPIRED        = -32001;
 export const MCP_QUOTA_EXCEEDED      = -32002;
 export const MCP_POLICY_UNAVAILABLE  = -32003;
@@ -304,9 +304,9 @@ export interface ConcordiaClientOptions {
   fetch?:      FetchLike;
 }
 
-const DEFAULT_BASE_URL = "https://api.concordex.dev";
+const DEFAULT_BASE_URL = "https://api.dmzagent.com";
 const DEFAULT_TIMEOUT  = 10_000;
-const USER_AGENT       = "concordex-concordia-typescript/0.6.0";
+const USER_AGENT       = "dmzagent-concordia-typescript/0.6.0";
 const MCP_PATH         = "/mcp/v1";
 
 // ---------------------------------------------------------------------------
@@ -410,17 +410,17 @@ export class ConcordiaClient {
 
   constructor(options: ConcordiaClientOptions = {}) {
     const envKey = typeof process !== "undefined"
-      ? process.env?.["CONCORDEX_API_KEY"]
+      ? process.env?.["DMZAGENT_API_KEY"]
       : undefined;
     const key = options.apiKey ?? envKey ?? "";
     if (!key) {
       throw new ConcordiaError(
-        "apiKey required (pass apiKey or set CONCORDEX_API_KEY)",
+        "apiKey required (pass apiKey or set DMZAGENT_API_KEY)",
       );
     }
     if (!key.startsWith("ck_")) {
       throw new ConcordiaError(
-        "apiKey must start with 'ck_' — double-check you copied a Concordex key, not another service's token",
+        "apiKey must start with 'ck_' — double-check you copied a DMZAgent key, not another service's token",
       );
     }
     this.#apiKey    = key;

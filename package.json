@@ -1,19 +1,19 @@
 {
-  "name": "@concordex/sdk",
+  "name": "@dmzagent/sdk",
   "version": "0.6.0",
-  "description": "TypeScript SDK for Concordex — the codex of trust between minds. Emit agent-stream events, run circuit-breaker checks, verify signed webhooks, govern via the Concordia MCP.",
+  "description": "TypeScript SDK for DMZAgent — the codex of trust between minds. Emit agent-stream events, run circuit-breaker checks, verify signed webhooks, govern via the Concordia MCP.",
   "license": "Apache-2.0",
   "author": "Eastern Shore Solutions",
-  "homepage": "https://concordex.dev",
+  "homepage": "https://dmzagent.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/praeceptor-thesis/concordex-sdk-typescript.git"
+    "url": "git+https://github.com/praeceptor-thesis/dmzagent-sdk-typescript.git"
   },
   "bugs": {
-    "url": "https://github.com/praeceptor-thesis/concordex-sdk-typescript/issues"
+    "url": "https://github.com/praeceptor-thesis/dmzagent-sdk-typescript/issues"
   },
   "keywords": [
-    "concordex",
+    "dmzagent",
     "agent",
     "ai",
     "audit",
@@ -71,7 +71,7 @@
     "access": "public",
     "provenance": true
   },
-  "concordex": {
-    "specVersion": "0.5.0"
+  "dmzagent": {
+    "specVersion": "0.6.0"
   }
 }

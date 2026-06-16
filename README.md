@@ -1,8 +1,8 @@
-# @concordex/sdk
+# @dmzagent/sdk
 
-The TypeScript SDK for **Concordex** — the codex of trust between minds.
+The TypeScript SDK for **DMZAgent** — the codex of trust between minds.
 
-Concordex indexes how AI agents (and any other subject of study) reveal
+DMZAgent indexes how AI agents (and any other subject of study) reveal
 themselves, predicts how they'll move under conditions, and gates their
 actions through auditable circuit breakers. This SDK is the
 customer-facing surface: emit conversation events, check whether a
@@ -11,12 +11,12 @@ in one place.
 
 This binding implements **spec version 0.5.0**. Naming follows the
 canonical map in `sdk-spec.md` §8 (camelCase methods, `…Error`
-exceptions, `Concordex` as the client class).
+exceptions, `DMZAgent` as the client class).
 
 ## Install
 
 ```bash
-npm install @concordex/sdk
+npm install @dmzagent/sdk
 ```
 
 Node 18.17+ is required. The package ships ESM + CJS dual builds and
@@ -25,9 +25,9 @@ its own `.d.ts` types.
 ## Quickstart
 
 ```ts
-import { Concordex, CBOpenError, subjectForDivision } from "@concordex/sdk";
+import { DMZAgent, CBOpenError, subjectForDivision } from "@dmzagent/sdk";
 
-const cx = new Concordex({ apiKey: "ck_..." }); // get one from your tenant_admin
+const cx = new DMZAgent({ apiKey: "ck_..." }); // get one from your tenant_admin
 const divisionId = "dv_...";
 const bot = subjectForDivision(divisionId, "checkout bot", { role: "agent", kind: "agent" });
 const customer = subjectForDivision(divisionId, "customer anon", { role: "customer", kind: "human" });
@@ -61,7 +61,7 @@ caller supplies.
 
 **Subject.** An identifiable noun: an AI agent, a human customer, a
 sensor, an institution. Each has a stable `subject_id` and a soul that
-Concordex builds up from observed behavior.
+DMZAgent builds up from observed behavior.
 
 **Interaction.** Anything that involves multiple subjects together —
 a chat session, a transaction chain, a video feed. Events stamp an
@@ -94,9 +94,9 @@ you can use directly when conversations don't fit the
 one-agent-one-customer shape:
 
 ```ts
-import { Concordex, subjectForDivision } from "@concordex/sdk";
+import { DMZAgent, subjectForDivision } from "@dmzagent/sdk";
 
-const cx = new Concordex({ apiKey: "ck_..." });
+const cx = new DMZAgent({ apiKey: "ck_..." });
 const bot = subjectForDivision("dv_...", "checkout bot", { role: "agent", kind: "agent" });
 const customer = subjectForDivision("dv_...", "customer anon", { role: "customer", kind: "human" });
 
@@ -198,8 +198,8 @@ The breaker only fires once policies match a subject's actual behavior.
 | `ServerError`      | Server returned 5xx, network error, or timeout — safe to retry with backoff |
 | `CBOpenError`      | Circuit breaker open — action must not proceed |
 
-All inherit from `ConcordexError`, so a single `catch (e instanceof
-ConcordexError)` covers production failure modes. Every error exposes
+All inherit from `DMZAgentError`, so a single `catch (e instanceof
+DMZAgentError)` covers production failure modes. Every error exposes
 `statusCode` and `body`; `CBOpenError` additionally carries `reason`,
 `firedPolicies`, `anchor`, and `scopeRef`.
 
@@ -208,20 +208,20 @@ The underlying network or parse error is preserved via the ES2022
 
 ## Webhook signature verification
 
-Concordex signs every outbound webhook with HMAC-SHA256 over
+DMZAgent signs every outbound webhook with HMAC-SHA256 over
 `<unix_seconds>.<payload>`, where the secret is the subscription's
 signing key. Verify in your handler:
 
 ```ts
-import { verifyWebhookSignature } from "@concordex/sdk";
+import { verifyWebhookSignature } from "@dmzagent/sdk";
 
 export async function handler(req: Request): Promise<Response> {
   const payload = await req.text();
-  const header = req.headers.get("Concordex-Signature") ?? "";
+  const header = req.headers.get("DMZAgent-Signature") ?? "";
   const ok = verifyWebhookSignature(
     payload,
     header,
-    process.env.CONCORDEX_WEBHOOK_SECRET!,
+    process.env.DMZAGENT_WEBHOOK_SECRET!,
   );
   if (!ok) return new Response("bad signature", { status: 401 });
   // ...handle the event
@@ -236,15 +236,15 @@ for malformed, expired, or mismatched signatures; it never throws.
 ## Configuration
 
 ```ts
-const cx = new Concordex({
+const cx = new DMZAgent({
   apiKey:    "ck_...",
-  baseUrl:   "https://api.concordex.dev", // override for staging / on-prem
+  baseUrl:   "https://api.dmzagent.com", // override for staging / on-prem
   timeout:   10_000,                       // per-request milliseconds
   userAgent: "my-app/1.2.3",               // appears in server-side audit logs
 });
 ```
 
-The default base URL is `https://api.concordex.dev`. For local
+The default base URL is `https://api.dmzagent.com`. For local
 development or staging:
 
 - Staging: `https://staging.api.eastern-shore-solutions.com`
@@ -260,16 +260,16 @@ once is a no-op.
 ## Versioning
 
 This package pins to spec version **0.5.0**. The pin is recorded in
-`package.json` under `concordex.specVersion` and verified by CI on
+`package.json` under `dmzagent.specVersion` and verified by CI on
 every push.
 
 Pre-1.0, MINOR bumps MAY include breaking wire changes; PATCH bumps
 remain backwards-compatible at both API and wire level. See
-`concordex-sdk-spec/sdk-spec.md` §11 for the full versioning policy.
+`dmzagent-sdk-spec/sdk-spec.md` §11 for the full versioning policy.
 
-## Concordia MCP client (`@concordex/sdk/concordia`)
+## Concordia MCP client (`@dmzagent/sdk/concordia`)
 
-Concordia is Concordex's governance MCP server — customer agents
+Concordia is DMZAgent's governance MCP server — customer agents
 speak [MCP 1.0](https://modelcontextprotocol.io/) to it to enforce
 covenants, record audit decisions, query installed Canons, and read
 soul snapshots on subjects under observation.
@@ -278,9 +278,9 @@ The package ships a typed client for it alongside the agent-stream
 surface. Subpath export for tree-shaking:
 
 ```ts
-import { ConcordiaClient } from "@concordex/sdk/concordia";
+import { ConcordiaClient } from "@dmzagent/sdk/concordia";
 
-const client = new ConcordiaClient({ apiKey: process.env.CONCORDEX_API_KEY! });
+const client = new ConcordiaClient({ apiKey: process.env.DMZAGENT_API_KEY! });
 
 // Pre-flight check — does policy allow this action?
 const v = await client.enforceCovenant({
@@ -332,7 +332,7 @@ await client.enforceCovenant({ ... });
 // `client` is disposed at scope exit
 ```
 
-See [`CONCORDIA_MCP.md`](https://github.com/praeceptor-thesis/concordex-sdk-spec/blob/main/CONCORDIA_MCP.md)
+See [`CONCORDIA_MCP.md`](https://github.com/praeceptor-thesis/dmzagent-sdk-spec/blob/main/CONCORDIA_MCP.md)
 for the underlying protocol specification.
 
 ## License

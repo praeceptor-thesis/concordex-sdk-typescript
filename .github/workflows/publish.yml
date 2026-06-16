@@ -6,8 +6,8 @@ name: publish
 #     -f event_type=publish \
 #     -F client_payload[version]=0.5.0
 #
-# Verifies the version matches package.json (and concordex.specVersion),
-# builds, and publishes with provenance to npm under the @concordex/sdk
+# Verifies the version matches package.json (and dmzagent.specVersion),
+# builds, and publishes with provenance to npm under the @dmzagent/sdk
 # scope.
 
 on:
@@ -56,13 +56,13 @@ jobs:
       - name: Verify package.json version
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
-          SPEC_VERSION=$(node -p "require('./package.json').concordex.specVersion")
+          SPEC_VERSION=$(node -p "require('./package.json').dmzagent.specVersion")
           if [ "$PKG_VERSION" != "${{ steps.v.outputs.version }}" ]; then
             echo "::error::package.json version $PKG_VERSION != dispatch version ${{ steps.v.outputs.version }}"
             exit 1
           fi
           if [ "$SPEC_VERSION" != "${{ steps.v.outputs.version }}" ]; then
-            echo "::error::concordex.specVersion $SPEC_VERSION != dispatch version ${{ steps.v.outputs.version }}"
+            echo "::error::dmzagent.specVersion $SPEC_VERSION != dispatch version ${{ steps.v.outputs.version }}"
             exit 1
           fi
 

@@ -55,9 +55,14 @@ export interface Subject {
  *
  * In accepted-only mode the server returns `interactionId`, `subjects`,
  * `frameId`, `accepted`, `nWorkspaces`, and `followMyData`; consumers
- * fetch per-workspace reasoning outcomes out-of-band. Older sync
- * envelopes can still populate the rich fields below. Consumers MUST
- * treat `undefined` as "unknown", not as "empty".
+ * fetch per-workspace reasoning outcomes out-of-band.
+ *
+ * Legacy sync fields (`subjectId`, `outcome`, `triageDecision`,
+ * `tagsFired`, `scoredByCanons`, `soulVersion`, `ledgerIndex`) are
+ * deprecated and no longer populated — use `capture()` + `awaitOutcome()`
+ * instead.
+ *
+ * Consumers MUST treat `undefined` as "unknown", not as "empty".
  */
 export interface EmitResult {
   readonly interactionId: string;
@@ -65,17 +70,24 @@ export interface EmitResult {
   readonly queued: boolean;
   readonly accepted?: boolean;
   readonly nWorkspaces?: number;
-
-  // Accepted-only and sync envelopes.
   readonly frameId?: string;
-  readonly subjectId?: string;
-  readonly outcome?: Outcome | string; // tolerate unknown enum values
-  readonly triageDecision?: TriageDecision | string;
-  readonly tagsFired?: ReadonlyArray<string>;
-  readonly scoredByCanons?: ReadonlyArray<string>;
-  readonly soulVersion?: number;
-  readonly ledgerIndex?: number;
   readonly followMyData?: string | null;
+
+  // Deprecated — no longer populated but kept for type compat.
+  /** @deprecated */
+  readonly subjectId?: string;
+  /** @deprecated */
+  readonly outcome?: Outcome | string;
+  /** @deprecated */
+  readonly triageDecision?: TriageDecision | string;
+  /** @deprecated */
+  readonly tagsFired?: ReadonlyArray<string>;
+  /** @deprecated */
+  readonly scoredByCanons?: ReadonlyArray<string>;
+  /** @deprecated */
+  readonly soulVersion?: number;
+  /** @deprecated */
+  readonly ledgerIndex?: number;
   readonly error?: unknown;
 
   /** Full server JSON response (verbatim). */
@@ -155,10 +167,178 @@ export function emitResultFromResponse(
   return Object.freeze(result);
 }
 
+// ---------- CaptureResult ----------
+
+/**
+ * Returned by `DMZAgent.capture()`.
+ *
+ * Lightweight accepted-only ack. Per-workspace reasoning outcomes
+ * are retrieved via `awaitOutcome()`, webhooks, or the SDK stream.
+ */
+export interface CaptureResult {
+  readonly frameId: string;
+  readonly accepted: boolean;
+  readonly nWorkspaces: number;
+  readonly interactionId: string;
+  readonly subjects: ReadonlyArray<string>;
+  readonly followMyData?: string | null;
+  /** Full server JSON response (verbatim). */
+  readonly raw: Readonly<Record<string, unknown>>;
+}
+
+export function captureResultFromResponse(
+  data: Record<string, unknown>,
+): CaptureResult {
+  const result: CaptureResult = {
+    frameId:
+      typeof data["frame_id"] === "string" ? (data["frame_id"] as string) : "",
+    accepted:
+      typeof data["accepted"] === "boolean" ? (data["accepted"] as boolean) : false,
+    nWorkspaces:
+      typeof data["n_workspaces"] === "number" ? (data["n_workspaces"] as number) : 0,
+    interactionId:
+      typeof data["interaction_id"] === "string"
+        ? (data["interaction_id"] as string)
+        : "",
+    subjects: Array.isArray(data["subjects"])
+      ? (data["subjects"] as string[])
+      : [],
+    ...(typeof data["follow_my_data"] === "string" || data["follow_my_data"] === null
+      ? { followMyData: data["follow_my_data"] as string | null }
+      : {}),
+    raw: Object.freeze({ ...data }),
+  };
+  return Object.freeze(result);
+}
+
+// ---------- OutcomeResult ----------
+
+/**
+ * Returned by `DMZAgent.awaitOutcome()`.
+ *
+ * Per-workspace reasoning results for a captured frame.
+ */
+export interface OutcomeResult {
+  readonly frameId: string;
+  readonly outcome: string; // "skipped" | "no_change" | "applied" | "failed"
+  readonly error?: { readonly code: string; readonly message: string } | null;
+  readonly tagsFired?: ReadonlyArray<Record<string, unknown>>;
+  readonly reasoning?: ReadonlyArray<Record<string, unknown>>;
+  readonly soulVersion?: number;
+  readonly finishedAt?: string;
+}
+
+export function outcomeResultFromResponse(
+  data: Record<string, unknown>,
+): OutcomeResult {
+  const errorRaw = data["error"];
+  const error =
+    errorRaw && typeof errorRaw === "object"
+      ? {
+          code:
+            typeof (errorRaw as Record<string, unknown>)["code"] === "string"
+              ? ((errorRaw as Record<string, unknown>)["code"] as string)
+              : "",
+          message:
+            typeof (errorRaw as Record<string, unknown>)["message"] === "string"
+              ? ((errorRaw as Record<string, unknown>)["message"] as string)
+              : "",
+        }
+      : undefined;
+
+  const result: OutcomeResult = {
+    frameId:
+      typeof data["frame_id"] === "string" ? (data["frame_id"] as string) : "",
+    outcome:
+      typeof data["outcome"] === "string" ? (data["outcome"] as string) : "no_change",
+    ...(error ? { error } : {}),
+    ...(Array.isArray(data["tags_fired"])
+      ? { tagsFired: data["tags_fired"] as ReadonlyArray<Record<string, unknown>> }
+      : {}),
+    ...(Array.isArray(data["reasoning"])
+      ? { reasoning: data["reasoning"] as ReadonlyArray<Record<string, unknown>> }
+      : {}),
+    ...(typeof data["soul_version"] === "number"
+      ? { soulVersion: data["soul_version"] as number }
+      : {}),
+    ...(typeof data["finished_at"] === "string"
+      ? { finishedAt: data["finished_at"] as string }
+      : {}),
+  };
+  return Object.freeze(result);
+}
+
+// ---------- NotificationPrefs ----------
+
+/**
+ * Returned by `DMZAgent.getNotificationPrefs()` and
+ * `updateNotificationPrefs()`.
+ */
+export interface NotificationPrefs {
+  readonly emailCadence: string;
+  readonly emailPausedUntil: string | null;
+  readonly pushEnabled: boolean;
+  readonly phone: string | null;
+  readonly smsEnabled: boolean;
+  readonly whatsappEnabled: boolean;
+  readonly webhookUrl: string | null;
+  readonly raw: Readonly<Record<string, unknown>>;
+}
+
+export function notificationPrefsFromResponse(data: Record<string, unknown>): NotificationPrefs {
+  return Object.freeze({
+    emailCadence: typeof data["email_cadence"] === "string" ? data["email_cadence"] as string : "off",
+    emailPausedUntil: typeof data["email_paused_until"] === "string" ? data["email_paused_until"] as string : null,
+    pushEnabled: typeof data["push_enabled"] === "boolean" ? data["push_enabled"] as boolean : false,
+    phone: typeof data["phone"] === "string" ? data["phone"] as string : null,
+    smsEnabled: typeof data["sms_enabled"] === "boolean" ? data["sms_enabled"] as boolean : false,
+    whatsappEnabled: typeof data["whatsapp_enabled"] === "boolean" ? data["whatsapp_enabled"] as boolean : false,
+    webhookUrl: typeof data["webhook_url"] === "string" ? data["webhook_url"] as string : null,
+    raw: Object.freeze({ ...data }),
+  });
+}
+
+// ---------- DivisionConfig ----------
+
+/**
+ * Returned by `DMZAgent.getDivisionConfig()` and
+ * `updateDivisionConfig()`.
+ */
+export interface DivisionConfig {
+  readonly config: Readonly<Record<string, unknown>>;
+  readonly raw: Readonly<Record<string, unknown>>;
+}
+
+export function divisionConfigFromResponse(data: Record<string, unknown>): DivisionConfig {
+  return Object.freeze({
+    config: Object.freeze((data["config"] as Record<string, unknown>) ?? {}),
+    raw: Object.freeze({ ...data }),
+  });
+}
+
+// ---------- ReviewEvent ----------
+
+export interface ReviewEvent {
+  readonly eventId: string;
+  readonly type: string;
+  readonly reviewId: string;
+  readonly subjectId: string;
+  readonly tagId: string;
+  readonly level: string;
+  readonly status: string;
+  readonly tier: string;
+  readonly decision: string | null;
+  readonly workspaceId: string;
+  readonly divisionId: string | null;
+  readonly frameId: string | null;
+  readonly occurredAt: string;
+  readonly raw: Readonly<Record<string, unknown>>;
+}
+
 // ---------- CheckResult ----------
 
 /**
- * Returned by `Concordex.check()`.
+ * Returned by `DMZAgent.check()`.
  *
  * `allow` is the binary the caller normally branches on. `warning` is
  * set when state is `half_open` — the breaker is in review mode but

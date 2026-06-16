@@ -7,10 +7,13 @@
  */
 
 export {
-  Concordex,
+  DMZAgent,
   EVENT_KINDS,
-  type ConcordexOptions,
+  EVENT_SUBJECT_TYPES,
+  type DMZAgentOptions,
   type ConversationOptions,
+  type CaptureOptions,
+  type AwaitOutcomeOptions,
   type EmitEventOptions,
   type SubjectSaysOptions,
   type ToolCallOptions,
@@ -18,6 +21,7 @@ export {
   type ObservationOptions,
   type CheckOptions,
   type EventKind,
+  type EventSubjectType,
   type FetchLike,
   type GuardHandle,
 } from "./client.js";
@@ -29,31 +33,41 @@ export {
   subjectIdForDivision,
   subjectForDivision,
   isCanonicalSubjectId,
+  subjectTypeFromSubjectId,
   type SubjectIdOptions,
   type SubjectForDivisionOptions,
 } from "./subjects.js";
 
 export {
   type EmitResult,
+  type CaptureResult,
+  type OutcomeResult,
   type CheckResult,
+  type NotificationPrefs,
+  type DivisionConfig,
+  type ReviewEvent,
   type Subject,
   type FiredPolicy,
   type AnchorRef,
   type Outcome,
   type CBState,
   type TriageDecision,
+  captureResultFromResponse,
+  outcomeResultFromResponse,
+  notificationPrefsFromResponse,
+  divisionConfigFromResponse,
 } from "./models.js";
 
 export {
-  ConcordexError,
+  DMZAgentError,
   AuthError,
   PermissionError,
   ValidationError,
   ServerError,
   CBOpenError,
-  type ConcordexErrorInit,
+  type DMZAgentErrorInit,
   type CBOpenErrorInit,
   type ErrorBody,
 } from "./errors.js";
 
-export const SPEC_VERSION = "0.5.0";
+export const SPEC_VERSION = "0.6.0";

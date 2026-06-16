@@ -1,11 +1,11 @@
 /**
- * The Concordex TypeScript client — the SDK's main entry point.
+ * The DMZAgent TypeScript client — the SDK's main entry point.
  *
  * Quick start:
  *
- *   import { Concordex } from "@concordex/sdk";
+ *   import { DMZAgent } from "@dmzagent/sdk";
  *
- *   const cx = new Concordex({ apiKey: "ck_..." });
+ *   const cx = new DMZAgent({ apiKey: "ck_..." });
  *
  *   await cx.subjectSays({
  *     agentSubjectId: "subject:dv:bot",
@@ -16,11 +16,11 @@
  *   const g = await cx.check({ subjectId: "subject:dv:bot" });
  *   if (!g.allow) return refuse(g.reason);
  *
- * Naming follows spec §8: `Concordex` (no `Client` suffix), camelCase
+ * Naming follows spec §8: `DMZAgent` (no `Client` suffix), camelCase
  * methods and option keys, `…Error` exception names.
  *
  * Auth: agent-stream and circuit-breaker requests carry
- * `X-Concordex-Key: ck_…`. The API key resolves server-side to the
+ * `Authorization: Bearer ck_…`. The API key resolves server-side to the
  * workspace; the wire never carries a workspace id directly.
  *
  * Transport: by default the client uses the runtime's global `fetch`
@@ -33,17 +33,25 @@ import { Conversation as ConversationImpl } from "./conversation.js";
 import {
   AuthError,
   CBOpenError,
-  ConcordexError,
+  DMZAgentError,
   PermissionError,
   ServerError,
   ValidationError,
 } from "./errors.js";
 import {
+  type CaptureResult,
   type CheckResult,
+  type DivisionConfig,
   type EmitResult,
+  type NotificationPrefs,
+  type OutcomeResult,
   type Subject,
+  captureResultFromResponse,
   checkResultFromResponse,
+  divisionConfigFromResponse,
   emitResultFromResponse,
+  notificationPrefsFromResponse,
+  outcomeResultFromResponse,
 } from "./models.js";
 
 // ---------- public constants ----------
@@ -61,12 +69,17 @@ export const EVENT_KINDS = [
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
+export const EVENT_SUBJECT_TYPES = [
+  "chat", "sensor", "lead", "ticket", "journey",
+] as const;
+export type EventSubjectType = (typeof EVENT_SUBJECT_TYPES)[number];
+
 // ---------- defaults ----------
 
-const DEFAULT_BASE_URL = "https://api.concordex.dev";
+const DEFAULT_BASE_URL = "https://api.dmzagent.com";
 const DEFAULT_TIMEOUT_MS = 10_000;
-const SPEC_VERSION = "0.5.0";
-const DEFAULT_USER_AGENT = `concordex-typescript/${SPEC_VERSION}`;
+const SPEC_VERSION = "0.6.0";
+const DEFAULT_USER_AGENT = `dmzagent-typescript/${SPEC_VERSION}`;
 
 // Type alias compatible with global `fetch`. The call sites only need
 // `(url, init) => Promise<Response>` so we use the widest viable type.
@@ -75,7 +88,7 @@ export type FetchLike = (input: any, init?: any) => Promise<any>;
 
 // ---------- constructor options ----------
 
-export interface ConcordexOptions {
+export interface DMZAgentOptions {
   apiKey: string;
   baseUrl?: string;
   /** Request timeout in milliseconds. Defaults to 10000. */
@@ -89,6 +102,7 @@ export interface ConcordexOptions {
 
 export interface EmitEventOptions {
   kind: EventKind | string;
+  subjectType?: string;
   agentSubjectId: string;
   payload?: Record<string, unknown>;
   interactionId?: string;
@@ -106,6 +120,7 @@ export interface SubjectSaysOptions {
   text: string;
   /** REQUIRED — every event is grounded against an agent identity. */
   agentSubjectId: string;
+  subjectType?: string;
   interactionId?: string;
   interactionKind?: string;
   subjects?: ReadonlyArray<Subject>;
@@ -119,6 +134,7 @@ export interface ToolCallOptions {
   /** The agent invoking the tool (also `agent_subject_id` on the wire). */
   subjectId: string;
   tool: string;
+  subjectType?: string;
   args?: Record<string, unknown>;
   interactionId?: string;
   interactionKind?: string;
@@ -130,6 +146,7 @@ export interface ToolCallOptions {
 export interface ToolResultOptions {
   subjectId: string;
   tool: string;
+  subjectType?: string;
   result: unknown;
   interactionId?: string;
   interactionKind?: string;
@@ -140,6 +157,7 @@ export interface ToolResultOptions {
 
 export interface ObservationOptions {
   agentSubjectId: string;
+  subjectType?: string;
   subjects: ReadonlyArray<Subject>;
   payload: Record<string, unknown>;
   interactionId?: string;
@@ -160,9 +178,29 @@ export interface ConversationOptions {
   metadata?: Record<string, unknown>;
 }
 
+export interface CaptureOptions {
+  subjectId: string;
+  kind: EventKind | string;
+  subjectType: string;
+  payload?: Record<string, unknown>;
+  agentSubjectId?: string;
+  interactionId?: string;
+  interactionKind?: string;
+  subjects?: ReadonlyArray<Subject>;
+  speakerSubjectId?: string;
+  speakerRole?: string;
+  occurredAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AwaitOutcomeOptions {
+  frameId: string;
+  timeout?: number;
+}
+
 // ---------- the client ----------
 
-export class Concordex {
+export class DMZAgent {
   readonly #apiKey: string;
   readonly #baseUrl: string;
   readonly #timeout: number;
@@ -170,7 +208,7 @@ export class Concordex {
   readonly #fetch: FetchLike;
   #closed = false;
 
-  constructor(options: ConcordexOptions) {
+  constructor(options: DMZAgentOptions) {
     const apiKey = options?.apiKey;
     if (typeof apiKey !== "string" || apiKey.length === 0 || !apiKey.startsWith("ck_")) {
       throw new ValidationError(
@@ -207,6 +245,11 @@ export class Concordex {
         `kind must be one of [${EVENT_KINDS.join(", ")}], got ${JSON.stringify(opts.kind)}`,
       );
     }
+    if (opts.subjectType && typeof opts.subjectType === "string" && !(EVENT_SUBJECT_TYPES as ReadonlyArray<string>).includes(opts.subjectType)) {
+      throw new ValidationError(
+        `subjectType must be one of [${EVENT_SUBJECT_TYPES.join(", ")}], got ${JSON.stringify(opts.subjectType)}`,
+      );
+    }
     if (typeof opts.agentSubjectId !== "string" || opts.agentSubjectId.length === 0) {
       throw new ValidationError("agentSubjectId is required");
     }
@@ -216,6 +259,7 @@ export class Concordex {
       agent_subject_id: opts.agentSubjectId,
       payload: opts.payload ?? {},
     };
+    if (opts.subjectType) body["subject_type"] = opts.subjectType;
     if (opts.interactionId) body["interaction_id"] = opts.interactionId;
     // Always emit interaction_kind — spec says default is "chat_session"
     // and the golden envelopes round-trip it on every event.
@@ -256,6 +300,7 @@ export class Concordex {
     }
     return this.emitEvent({
       kind: "subject_says",
+      ...(opts.subjectType ? { subjectType: opts.subjectType } : {}),
       agentSubjectId: opts.agentSubjectId,
       payload: { text: opts.text, ...(opts.payloadExtra ?? {}) },
       ...(opts.interactionId ? { interactionId: opts.interactionId } : {}),
@@ -283,6 +328,7 @@ export class Concordex {
     }
     return this.emitEvent({
       kind: "tool_call",
+      ...(opts.subjectType ? { subjectType: opts.subjectType } : {}),
       agentSubjectId: opts.subjectId,
       payload: { tool: opts.tool, args: opts.args ?? {} },
       ...(opts.interactionId ? { interactionId: opts.interactionId } : {}),
@@ -310,6 +356,7 @@ export class Concordex {
     }
     return this.emitEvent({
       kind: "tool_result",
+      ...(opts.subjectType ? { subjectType: opts.subjectType } : {}),
       agentSubjectId: opts.subjectId,
       payload: { tool: opts.tool, result: opts.result },
       ...(opts.interactionId ? { interactionId: opts.interactionId } : {}),
@@ -340,6 +387,7 @@ export class Concordex {
     }
     return this.emitEvent({
       kind: "observation",
+      ...(opts.subjectType ? { subjectType: opts.subjectType } : {}),
       agentSubjectId: opts.agentSubjectId,
       payload: opts.payload,
       ...(opts.interactionId ? { interactionId: opts.interactionId } : {}),
@@ -434,6 +482,134 @@ export class Concordex {
   }
 
   // ===================================================================== //
+  // Capture — /v1/agent-stream/event (accepted-only)
+  // ===================================================================== //
+
+  /**
+   * Low-level capture. Returns immediately with accepted-only ack.
+   * Per-workspace reasoning outcomes are retrieved via `awaitOutcome()`.
+   */
+  async capture(opts: CaptureOptions): Promise<CaptureResult> {
+    if (!opts || typeof opts !== "object") {
+      throw new ValidationError("capture requires an options object");
+    }
+    if (typeof opts.subjectId !== "string" || opts.subjectId.length === 0) {
+      throw new ValidationError("subjectId is required");
+    }
+    if (typeof opts.kind !== "string" || opts.kind.length === 0) {
+      throw new ValidationError("kind is required");
+    }
+    if (typeof opts.subjectType !== "string" || !(EVENT_SUBJECT_TYPES as ReadonlyArray<string>).includes(opts.subjectType)) {
+      throw new ValidationError(
+        `subjectType must be one of [${EVENT_SUBJECT_TYPES.join(", ")}], got ${JSON.stringify(opts.subjectType)}`,
+      );
+    }
+
+    const body: Record<string, unknown> = {
+      kind: opts.kind,
+      subject_id: opts.subjectId,
+      subject_type: opts.subjectType,
+      payload: opts.payload ?? {},
+    };
+    if (opts.agentSubjectId) body["agent_subject_id"] = opts.agentSubjectId;
+    if (opts.interactionId) body["interaction_id"] = opts.interactionId;
+    body["interaction_kind"] = opts.interactionKind ?? "chat_session";
+    if (opts.subjects && opts.subjects.length > 0) body["subjects"] = opts.subjects;
+    if (opts.speakerSubjectId) body["speaker_subject_id"] = opts.speakerSubjectId;
+    if (opts.speakerRole) body["speaker_role"] = opts.speakerRole;
+    if (opts.occurredAt) body["occurred_at"] = opts.occurredAt;
+    if (opts.metadata && Object.keys(opts.metadata).length > 0) body["metadata"] = opts.metadata;
+
+    const data = await this.#postJson("/v1/agent-stream/event", body);
+    return captureResultFromResponse(data);
+  }
+
+  // ===================================================================== //
+  // Await outcome — /v1/frames/{id}/story (polling)
+  // ===================================================================== //
+
+  async awaitOutcome(opts: AwaitOutcomeOptions): Promise<OutcomeResult> {
+    const timeout = Math.min(opts.timeout ?? 30, 120);
+    const start = Date.now();
+    const end = start + timeout * 1000;
+    let delay = 100;
+    let lastError: Error | undefined;
+
+    while (Date.now() < end) {
+      await new Promise(r => setTimeout(r, delay));
+      try {
+        const data = await this.#getJson(`/v1/frames/${encodeURIComponent(opts.frameId)}/story`);
+        return outcomeResultFromResponse(data);
+      } catch (e) {
+        lastError = e as Error;
+        if (e instanceof ValidationError || e instanceof AuthError || e instanceof PermissionError) {
+          throw e;
+        }
+      }
+      delay = Math.min(delay * 2, 2000);
+    }
+    throw new ServerError(`await_outcome timed out after ${timeout}s for frame ${opts.frameId}`, {
+      body: lastError?.message ?? null,
+    });
+  }
+
+  // ===================================================================== //
+  // Notification preferences — /v1/settings/notifications
+  // ===================================================================== //
+
+  /**
+   * Fetch the current user's notification preferences, including
+   * email cadence, push state, phone/SMS/WhatsApp settings.
+   */
+  async getNotificationPrefs(): Promise<NotificationPrefs> {
+    const data = await this.#getJson("/v1/settings/notifications");
+    return notificationPrefsFromResponse(data);
+  }
+
+  /**
+   * Update notification preferences. Only supplied fields are touched.
+   *
+   * Supported fields: `email_cadence` (off|daily|weekly),
+   * `push_enabled` (boolean), `phone` (E.164 string),
+   * `sms_enabled` (boolean), `whatsapp_enabled` (boolean).
+   */
+  async updateNotificationPrefs(
+    prefs: Record<string, unknown>,
+  ): Promise<NotificationPrefs> {
+    const data = await this.#putJson("/v1/settings/notifications", prefs);
+    return notificationPrefsFromResponse(data);
+  }
+
+  // ===================================================================== //
+  // Division config — /v1/divisions/{id}/config
+  // ===================================================================== //
+
+  /**
+   * Read a division's JSON config blob. Contains settings like
+   * `reasoning_mode` ("per_frame" | "per_trace").
+   */
+  async getDivisionConfig(divisionId: string): Promise<DivisionConfig> {
+    const path = `/v1/divisions/${encodeURIComponent(divisionId)}/config`;
+    const data = await this.#getJson(path);
+    return divisionConfigFromResponse(data);
+  }
+
+  /**
+   * Replace a division's JSON config blob. Pass the full config object
+   * (merge happens server-side).
+   */
+  async updateDivisionConfig(
+    divisionId: string,
+    config: Record<string, unknown>,
+  ): Promise<DivisionConfig> {
+    const data = await this.#putJson(
+      `/v1/divisions/${encodeURIComponent(divisionId)}/config`,
+      config,
+    );
+    return divisionConfigFromResponse(data);
+  }
+
+  // ===================================================================== //
   // Resource management
   // ===================================================================== //
 
@@ -458,7 +634,7 @@ export class Concordex {
   // Internal — HTTP plumbing
   // ===================================================================== //
 
-  async #postJson(
+  async #putJson(
     path: string,
     body: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
@@ -468,9 +644,9 @@ export class Concordex {
     let response: Response;
     try {
       response = (await this.#fetch(url, {
-        method: "POST",
+        method: "PUT",
         headers: {
-          "X-Concordex-Key": this.#apiKey,
+          "Authorization": `Bearer ${this.#apiKey}`,
           "Content-Type": "application/json",
           "User-Agent": this.#userAgent,
         },
@@ -483,6 +659,73 @@ export class Concordex {
         throw new ServerError(`timeout calling ${path}`, {
           cause: e,
           body: err?.message ?? null,
+        });
+      }
+      throw new ServerError(`network error calling ${path}: ${err?.message ?? String(e)}`, {
+        cause: e,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    return await this.#handle(response, path);
+  }
+
+  async #postJson(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const url = `${this.#baseUrl}${path}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.#timeout);
+    let response: Response;
+    try {
+      response = (await this.#fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.#apiKey}`,
+          "Content-Type": "application/json",
+          "User-Agent": this.#userAgent,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })) as Response;
+    } catch (e: unknown) {
+      const err = e as { name?: string; message?: string };
+      if (err?.name === "AbortError") {
+        throw new ServerError(`timeout calling ${path}`, {
+          cause: e,
+          body: err?.message ?? null,
+        });
+      }
+      throw new ServerError(`network error calling ${path}: ${err?.message ?? String(e)}`, {
+        cause: e,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    return await this.#handle(response, path);
+  }
+
+  async #getJson(path: string): Promise<Record<string, unknown>> {
+    const url = `${this.#baseUrl}${path}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.#timeout);
+    let response: Response;
+    try {
+      response = (await this.#fetch(url, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${this.#apiKey}`,
+          "Content-Type": "application/json",
+          "User-Agent": this.#userAgent,
+        },
+        signal: controller.signal,
+      })) as Response;
+    } catch (e: unknown) {
+      const err = e as { name?: string; message?: string };
+      if (err?.name === "AbortError") {
+        throw new ServerError(`timeout calling ${path}`, {
+          cause: e, body: err?.message ?? null,
         });
       }
       throw new ServerError(`network error calling ${path}: ${err?.message ?? String(e)}`, {
@@ -527,7 +770,7 @@ export class Concordex {
     if (status >= 500) {
       throw new ServerError(`server error from ${path} (${status})`, init);
     }
-    throw new ConcordexError(`unexpected status ${status} from ${path}`, init);
+    throw new DMZAgentError(`unexpected status ${status} from ${path}`, init);
   }
 }
 

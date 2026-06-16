@@ -15,11 +15,11 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 export function specPath(): string {
-  const override = process.env["CONCORDEX_SPEC_PATH"];
+  const override = process.env["DMZAGENT_SPEC_PATH"];
   if (override) return resolve(override);
   // tests/ is one level below the SDK repo root; the spec sits as a
   // sibling repo by default.
-  return resolve(HERE, "..", "..", "concordex-sdk-spec");
+  return resolve(HERE, "..", "..", "dmzagent-sdk-spec");
 }
 
 export function loadFixture<T = unknown>(relative: string): T {

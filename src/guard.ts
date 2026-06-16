@@ -1,5 +1,5 @@
 /**
- * `guard()` implementation lives on `Concordex` in `client.ts` (so the
+ * `guard()` implementation lives on `DMZAgent` in `client.ts` (so the
  * client and its guard share the same `check()` plumbing). This module
  * re-exports the public types — `GuardHandle` — for consumers who want
  * to import them by their `guard` namespace.
