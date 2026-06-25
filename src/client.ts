@@ -102,6 +102,12 @@ export interface DMZAgentOptions {
 
 export interface EmitEventOptions {
   kind: EventKind | string;
+  /**
+   * Customer-supplied trace/correlation id (like a Stripe Idempotency-Key).
+   * The caller owns it and propagates it across processes so an async flow
+   * groups into one trace. The server maps it onto the session_id key.
+   */
+  traceId?: string;
   subjectType?: string;
   agentSubjectId: string;
   payload?: Record<string, unknown>;
@@ -115,6 +121,8 @@ export interface EmitEventOptions {
 }
 
 export interface SubjectSaysOptions {
+  /** Customer-supplied trace/correlation id; groups this flow into one trace. */
+  traceId?: string;
   /** The speaker (could be agent, customer, sensor — any subject). */
   subjectId: string;
   text: string;
@@ -131,6 +139,8 @@ export interface SubjectSaysOptions {
 }
 
 export interface ToolCallOptions {
+  /** Customer-supplied trace/correlation id; groups this flow into one trace. */
+  traceId?: string;
   /** The agent invoking the tool (also `agent_subject_id` on the wire). */
   subjectId: string;
   tool: string;
@@ -144,6 +154,8 @@ export interface ToolCallOptions {
 }
 
 export interface ToolResultOptions {
+  /** Customer-supplied trace/correlation id; groups this flow into one trace. */
+  traceId?: string;
   subjectId: string;
   tool: string;
   subjectType?: string;
@@ -156,6 +168,8 @@ export interface ToolResultOptions {
 }
 
 export interface ObservationOptions {
+  /** Customer-supplied trace/correlation id; groups this flow into one trace. */
+  traceId?: string;
   agentSubjectId: string;
   subjectType?: string;
   subjects: ReadonlyArray<Subject>;
@@ -176,9 +190,16 @@ export interface ConversationOptions {
   agentSubjectId?: string;
   kind?: string;
   metadata?: Record<string, unknown>;
+  /** Customer-supplied trace id, sent on every event so the conversation
+   * groups into one trace — reuse it from another process to resume. */
+  traceId?: string;
+  /** Optional: resume a server interaction row cached earlier. */
+  interactionId?: string;
 }
 
 export interface CaptureOptions {
+  /** Customer-supplied trace/correlation id; groups this flow into one trace. */
+  traceId?: string;
   subjectId: string;
   kind: EventKind | string;
   subjectType: string;
@@ -271,6 +292,8 @@ export class DMZAgent {
     if (opts.metadata && Object.keys(opts.metadata).length > 0) {
       body["metadata"] = opts.metadata;
     }
+    // Customer-supplied trace id → session_id grouping key on the server.
+    if (opts.traceId) body["trace_id"] = opts.traceId;
 
     const data = await this.#postJson("/v1/agent-stream/event", body);
     return emitResultFromResponse(data);
@@ -519,6 +542,7 @@ export class DMZAgent {
     if (opts.speakerRole) body["speaker_role"] = opts.speakerRole;
     if (opts.occurredAt) body["occurred_at"] = opts.occurredAt;
     if (opts.metadata && Object.keys(opts.metadata).length > 0) body["metadata"] = opts.metadata;
+    if (opts.traceId) body["trace_id"] = opts.traceId;
 
     const data = await this.#postJson("/v1/agent-stream/event", body);
     return captureResultFromResponse(data);

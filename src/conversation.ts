@@ -45,6 +45,7 @@ export class Conversation {
   // snapshot from the public getter.
   #subjects: Subject[];
   #interactionId: string | null = null;
+  readonly #traceId: string | null;
   #closed = false;
 
   constructor(client: DMZAgent, opts: ConversationOptions) {
@@ -81,6 +82,12 @@ export class Conversation {
     this.#agentSubjectId = agentSubjectId;
     this.#interactionKind = opts.kind ?? "chat_session";
     this.#subjects = roster;
+    // Customer-supplied trace id, propagated on every event so this
+    // conversation's frames group into one trace — reuse it from another
+    // process to continue the trace. interactionId resumes a cached server
+    // interaction row.
+    this.#traceId = opts.traceId ?? null;
+    this.#interactionId = opts.interactionId ?? null;
   }
 
   // ---------- properties ----------
@@ -135,6 +142,7 @@ export class Conversation {
       interactionKind: this.#interactionKind,
       subjects: this.#subjects,
       ...(this.#interactionId ? { interactionId: this.#interactionId } : {}),
+      ...(this.#traceId ? { traceId: this.#traceId } : {}),
       ...(payloadExtra ? { payloadExtra } : {}),
     });
     this.#captureInteractionId(result);
@@ -153,6 +161,7 @@ export class Conversation {
       interactionKind: this.#interactionKind,
       subjects: this.#subjects,
       ...(this.#interactionId ? { interactionId: this.#interactionId } : {}),
+      ...(this.#traceId ? { traceId: this.#traceId } : {}),
     });
     this.#captureInteractionId(result);
     return result;
@@ -170,6 +179,7 @@ export class Conversation {
       interactionKind: this.#interactionKind,
       subjects: this.#subjects,
       ...(this.#interactionId ? { interactionId: this.#interactionId } : {}),
+      ...(this.#traceId ? { traceId: this.#traceId } : {}),
     });
     this.#captureInteractionId(emit);
     return emit;
@@ -182,6 +192,7 @@ export class Conversation {
       payload,
       interactionKind: this.#interactionKind,
       ...(this.#interactionId ? { interactionId: this.#interactionId } : {}),
+      ...(this.#traceId ? { traceId: this.#traceId } : {}),
     });
     this.#captureInteractionId(result);
     return result;
